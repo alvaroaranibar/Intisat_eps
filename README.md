@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <h1 align="center">
 	<br>
 	EPS 2.0 FIRMWARE
@@ -88,3 +89,25 @@ This repository containing firmware files is licensed under GPLv3 license.
 ## Notes
 
 Project under development!
+=======
+
+para clonar:
+
+# git clone "link"
+
+para ver los cambios :
+
+# git status
+
+para agregar los cambios vistos a la cola del commit:
+
+# git add .
+
+para commitear :
+
+# git commit -m "titulo del cambio"
+
+para pushear al github:
+
+# git push origin main
+>>>>>>> 8d5c5fce9361a295308e75ead46895829ece7dac
