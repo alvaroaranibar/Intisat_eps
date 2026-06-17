@@ -56,7 +56,7 @@
 #define CONFIG_TASK_DEVICE_RESPONSE_ENABLED             0
 
 /* Devices */
-#define CONFIG_SET_DUMMY_EPS                            0
+#define CONFIG_SET_DUMMY_EPS                            1
 #define CONFIG_DEV_LEDS_ENABLED                         1
 #define CONFIG_DEV_HEATER_ENABLED                       1
 #define CONFIG_DEV_MPPT_ENABLED                         1
