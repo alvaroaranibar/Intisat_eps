@@ -292,13 +292,14 @@ int eps_buffer_read(uint8_t id, uint32_t *value)
 
         /* ================================================================
          * CRITICAL HEALTH PARAMETERS — healthy dummy values for OBC testing
-         * Battery pack: 2S2P Li-ion
-         *   Nominal: 7200 mV | Max: 8400 mV | Capacity: 2450 mAh
-         *   Active cutoff (3.2V/cell): 6400 mV
-         *   Standby cutoff (2.8V/cell): 5600 mV
+         * Battery pack: 2S2P Li-ion (Sanyo NCR18650GA, 2x3500 mAh)
+         *   Nominal: 7200 mV | Max: 8400 mV | Capacity: 7000 mAh
+         *   VAE — DS2777 algorithmic active cutoff  (3.2V/cell): 6400 mV -> RARC = 0%
+         *   VAE — DS2777 algorithmic standby cutoff (2.8V/cell): 5600 mV -> RSRC = 0%
+         *   VUV — DS2777 hardware MOSFET cutoff    (~2.5V/cell): ~5000 mV -> abrupt power cut
          *   Active discharge rate: 6 A | Standby rate: 1 A
          * OBC polling: REQ_FULL_TLM every 3 min, full structure saved to flash.
-         * NOTE: 3-min snapshot IS the log. WARNING states require no OBC write.
+         * NOTE: 3-min snapshot IS the log.
          *
          * SAFE MODE definition: write power_en_reg = 0x00 via WR_SINGLE_PARAM
          *   (all controllable switches off). UHF, OBC and EPS remain powered
@@ -311,16 +312,21 @@ int eps_buffer_read(uint8_t id, uint32_t *value)
 
         /* --- Battery raw voltage [mV] ---
          * BACKUP CHECK for RARC/RSRC: RARC/RSRC are the primary safe mode
-         * triggers. This register is a last-resort confirmation if SoC failed.
+         * triggers. This register is a last-resort confirmation if SoC fails.
          *
-         * > 6400 mV  [GOOD]: No action. RARC/RSRC are decision makers here.
+         * VAE = 6400 mV (3.2V/cell): DS2777 algorithmic active-empty cutoff.
+         *   Below this level, RARC = 0%. OBC should already be in SAFE MODE
+         *   via the RARC threshold before this voltage is reached.
          *
-         * < 6400 mV  [SAFE MODE — BACKUP]: Active cutoff violated.
-         *            If NOT already in SAFE_MODE: enter SAFE MODE now.
-         *            If already in SAFE_MODE: expected state, keep monitoring.
+         * > 6400 mV: No action. RARC/RSRC are the decision makers.
          *
-         * < 5600 mV  [EMERGENCY]: Standby cutoff violated. Both primary and
-         *            backup checks failed. DS2777 hardware protection takes over. */
+         * < 6400 mV [SAFE MODE — BACKUP]: Active algorithmic cutoff reached.
+         *   If NOT already in SAFE MODE: enter SAFE MODE now.
+         *   If already in SAFE MODE: expected state, keep monitoring.
+         *
+         * VUV ~ 5000 mV (2.5V/cell): DS2777 hardware MOSFET cutoff.
+         *   DS2777 physically disconnects the battery — abrupt power loss.
+         *   OBC cannot prevent this; all upstream checks should have acted. */
         case EPS2_PARAM_ID_BAT_VOLTAGE:
             *value = 7600;
             break;
@@ -339,11 +345,15 @@ int eps_buffer_read(uint8_t id, uint32_t *value)
          * PRIMARY metric for safe mode entry while in ACTIVE MODE.
          * OBC must keep previous RARC value in RAM to detect transitions.
          *
-         * > 60 %  [GOOD]: No action. 3-min snapshot records the value.
-         * 40-60 % [WARNING]: No action. Degradation visible in snapshots.
-         * < 30 %  [SAFE MODE]: Enter SAFE MODE (power_en_reg = 0x00).
-         *          Increase poll rate: REQ_SINGLE_PARAM(RARC+RSRC) every 60 s.
-         * > 50 %  [RECOVERY]: Exit SAFE MODE only if RSRC is also > 50 %. */
+         * > 30 %: No action. 3-min snapshot records the value.
+         *
+         * < 30 % [SAFE MODE]: Enter SAFE MODE (power_en_reg = 0x00).
+         *         Increase poll rate: REQ_SINGLE_PARAM(RARC+RSRC) every 60 s.
+         *
+         * RARC = 0 %: AEF flag in status register will also be set (DS2777 VAE
+         *         reached at 3.2V/cell). If not already in SAFE MODE, enter now.
+         *
+         * > 50 % [RECOVERY]: Exit SAFE MODE only if RSRC is also > 50 %. */
         case EPS2_PARAM_ID_BAT_MONITOR_RARC:
             *value = 80;
             break;
@@ -352,78 +362,75 @@ int eps_buffer_read(uint8_t id, uint32_t *value)
          * KEY metric for eclipse survivability. Always evaluated in parallel,
          * regardless of current operating mode. OBC keeps previous value in RAM.
          *
-         * > 50 %  [GOOD]: No action. 3-min snapshot records the value.
-         * 35-50 % [WARNING]: No action. Degradation visible in snapshots.
-         * < 35 %  [SAFE MODE — FORCED]: Enter SAFE MODE (power_en_reg = 0x00)
-         *          regardless of RARC. Eclipse survival at 1A not guaranteed.
-         *          Increase poll rate: REQ_SINGLE_PARAM(RARC+RSRC) every 60 s.
-         * > 50 %  [RECOVERY]: Exit SAFE MODE only if RARC is also > 50 %. */
+         * > 35 %: No action. 3-min snapshot records the value.
+         *
+         * < 35 % [SAFE MODE — FORCED]: Enter SAFE MODE (power_en_reg = 0x00)
+         *         regardless of RARC. Eclipse survival at 1A not guaranteed.
+         *         Min. eclipse energy (40 min at 1A) = ~667 mAh (~9.5% of 7000 mAh).
+         *         35% threshold includes x3.5 safety margin for aging and accuracy.
+         *         Increase poll rate: REQ_SINGLE_PARAM(RARC+RSRC) every 60 s.
+         *
+         * RSRC = 0 %: SEF flag in status register will also be set (DS2777
+         *         standby-empty reached, RSRC < 10%). Enter SAFE MODE immediately.
+         *
+         * > 50 % [RECOVERY]: Exit SAFE MODE only if RARC is also > 50 %. */
         case EPS2_PARAM_ID_BAT_MONITOR_RSRC:
             *value = 85;
             break;
 
-        /* --- DS2777 status register ---
-         * 0x00   [HEALTHY]: No action. 3-min snapshot records the value.
+        /* --- DS2777 Status Register (addr 0x01h) — FuelPack algorithm flags ---
+         * All bits are read-only; set and cleared autonomously by the DS2777.
          *
-         * Any bit set, clears on next poll [TRANSIENT]: No action.
-         *         Visible in snapshot sequence for ground review.
+         * Bit 7 (CHGTF - Charge Termination): 1 = battery full (VCHG reached
+         *         and charge current dropped below IMIN). No OBC action.
+         *         Cleared automatically when RARC drops below 90%.
          *
-         * Any bit set, persists across 3 consecutive polls (~9 min) [FAULT]:
-         *         Enter SAFE MODE (power_en_reg = 0x00).
-         *         Exit SAFE MODE only when register reads 0x00 for 3 polls
-         *         AND both RARC > 50% and RSRC > 50%. */
+         * Bit 6 (AEF - Active-Empty): 1 = batteries_mv crossed VAE (3.2V/cell)
+         *         under active load; RARC = 0%. Enter SAFE MODE immediately
+         *         if not already in SAFE MODE.
+         *
+         * Bit 5 (SEF - Standby-Empty): 1 = RSRC < 10%, deep discharge.
+         *         Enter SAFE MODE immediately regardless of other indicators.
+         *         Cleared when RSRC recovers above 15%.
+         *
+         * Bit 4 (LEARNF - Learn): 1 = DS2777 completed a learn cycle and
+         *         recalibrated capacity internally. No OBC action needed.
+         *
+         * Healthy value: 0x00. CHGTF = 1 (0x80) is also normal when fully
+         *         charged. AEF (bit 6) or SEF (bit 5) set are critical. */
         case EPS2_PARAM_ID_BAT_MONITOR_STATUS:
             *value = 0x00;
             break;
 
-        /* --- DS2777 protection register ---
-         * BACKUP CHECK for batteries_mv and RARC: hardware-enforced by the
-         * battery monitor IC. Act immediately — do not wait for next 3-min poll.
+        /* --- DS2777 Protection Register (addr 0x00h) — MOSFET gate control ---
          *
-         * 0x00        [HEALTHY]: No action.
+         * Bit 3 (CC - Charge Control): read-only. 1 = charge MOSFET closed
+         *         (charging physically allowed). CC=0 is normal when battery is
+         *         full (CHGTF set). Alert only if CC=0 while CHGTF=0 and RARC<90%.
          *
-         * OV bit set  (overvoltage): Write all MPPT duty cycles = 0 via
-         *             WR_SINGLE_PARAM to stop solar charging. Resume when cleared.
+         * Bit 2 (DC - Discharge Control): read-only. 1 = discharge MOSFET
+         *         closed (system can draw power). DC=0 means VUV threshold was
+         *         hit — DS2777 is cutting power. CRITICAL: enter SAFE MODE
+         *         immediately (if still alive to act).
          *
-         * UV bit set  (undervoltage): Enter SAFE MODE (power_en_reg = 0x00).
+         * Bit 1 (CE - Charge Enable): writable by OBC. Default = 1.
+         *         If CE=0 unexpectedly, restore to 1 via WR_SINGLE_PARAM.
          *
-         * OC bit set  (overcurrent, physical limit 10 A): Enter SAFE MODE
-         *             (power_en_reg = 0x00) immediately to reduce current draw.
+         * Bit 0 (DE - Discharge Enable): writable by OBC. Default = 1.
+         *         NEVER write 0 — this cuts the battery bus and kills OBC.
+         *         If DE=0 unexpectedly, restore to 1 immediately.
          *
-         * Exit SAFE MODE when register reads 0x00 for 3 consecutive polls
-         * AND both RARC > 50% and RSRC > 50%. */
+         * Healthy value during charging:     0x0F (CC=1, DC=1, CE=1, DE=1).
+         * Healthy value when not charging:   0x07 (CC=0, DC=1, CE=1, DE=1).
+         * CRITICAL if DC=0 or DE=0: imminent or in-progress power loss. */
         case EPS2_PARAM_ID_BAT_MONITOR_PROTECT:
-            *value = 0x00;
+            *value = 0x0F;
             break;
 
         /* --- Battery temperature RTD 0 [Kelvin] ---
-         * Controls heater decisions. Default: heaters in AUTO (EPS manages them).
-         * OBC only intervenes when EPS AUTO is insufficient or sensor is faulty.
-         * These actions are independent of SAFE MODE — temperature management
-         * continues even while in SAFE MODE.
-         *
-         * 273-318 K  [GOOD | 0-45 C]: No action. EPS heaters stay in AUTO.
-         *
-         * 263-273 K  [WARNING LOW | -10 to 0 C]: No action if heaters are AUTO.
-         *             If heaters are in MANUAL (prior fault): write duty = 50 %.
-         *
-         * < 263 K    [ACTION LOW | < -10 C]: Switch heaters to MANUAL via
-         *             WR_SINGLE_PARAM(BAT_HEATER_1_MODE, 0) and duty = 100 %.
-         *             Write all MPPT duty cycles = 0 to suspend charging.
-         *             Reason: charging Li-ion below 0 C causes lithium plating
-         *             (irreversible cell damage).
-         *             Restore AUTO and MPPT when RTD_0 returns to > 278 K (5 C).
-         *
-         * 318-333 K  [WARNING HIGH | 45-60 C]: Write MPPT duty cycles -= 20 %
-         *             via WR_SINGLE_PARAM to reduce charging current and heat.
-         *
-         * > 333 K    [ACTION HIGH | > 60 C]: Write all MPPT duty cycles = 0.
-         *             Restore MPPT when RTD_0 returns to < 323 K (50 C).
-         *
-         * < 100 K or > 400 K [IMPLAUSIBLE — sensor failure]: Switch heaters to
-         *             MANUAL with duty = 20 % (conservative safe value).
-         *             Flag RTD_0 as FAILED in OBC state machine.
-         *             Do not use for decisions until cleared by ground command. */
+         * EPS manages heaters autonomously in AUTO mode.
+         * OBC records this value in every 3-min snapshot for ground monitoring.
+         * No OBC action taken — temperature management is handled by EPS AUTO. */
         case EPS2_PARAM_ID_RTD_0_TEMP:
             *value = 293;
             break;
