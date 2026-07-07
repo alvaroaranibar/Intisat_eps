@@ -47,7 +47,7 @@
 #define UART_INTERRUPT_MODULE_NAME      "UART_INTERRUPT"
 
 #define UART_RX_BUFFER_MAX_SIZE         8                  /**< Number of bytes of the maximum UART RX buffer size. */
-#define UART_TX_BUFFER_MAX_SIZE         101                /**< Number of bytes of the maximum UART TX buffer size. */
+#define UART_TX_BUFFER_MAX_SIZE         105                /**< Number of bytes of the maximum UART TX buffer size (full TLM: 104 bytes + CRC8). */
 
 /**< Rx frame sizes, including CRC8 */
 #define FULL_TLM_RX_FR_SIZE          2            

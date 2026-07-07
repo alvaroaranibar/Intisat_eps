@@ -46,7 +46,7 @@
 #define I2C_SLAVE_MODULE_NAME               "I2C_SLAVE"
 
 #define I2C_RX_BUFFER_MAX_SIZE              7               /**< Number of bytes of the maximum I2C RX buffer size. */
-#define I2C_TX_BUFFER_MAX_SIZE              101             /**< Number of bytes of the maximum I2C TX buffer size. */
+#define I2C_TX_BUFFER_MAX_SIZE              105             /**< Number of bytes of the maximum I2C TX buffer size (full TLM: 104 bytes + CRC8). */
 
 /**
  * \brief I2C port type.

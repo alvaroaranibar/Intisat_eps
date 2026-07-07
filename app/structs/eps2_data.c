@@ -68,11 +68,7 @@ eps_data_t eps_data_buff = {
     .heater2_mode = 1,
     .heater2_duty_cycle = 0,
     
-    /* Only 5v_psw0 and 5v_psw3 start on because they provide CAN and antennas power supply */
-    .power_en_reg = 0x09,
-    .buck_en_reg = 0x03,
-
-    .firmware_version = 0x00000300,       
+    .firmware_version = 0x00000300,
 
     .device_id = 0xEEE2
 };
