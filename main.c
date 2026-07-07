@@ -42,14 +42,11 @@
 
 void main(void)
 {
-    /* Disable default watchdog immediately to prevent reset during clock setup */
-    WDT_A_hold(WDT_A_BASE);
+    /* Watchdog device initialization */
+    watchdog_init();
 
     /* System clocks configuration */
     clocks_setup((clocks_config_t){.mclk_hz = 32000000UL, .smclk_hz=32000000UL, .aclk_hz=32768});
-
-    /* Watchdog initialization: ACLK/32K = 1 s timeout, fed every 100 ms by vTaskWatchdogReset */
-    watchdog_init();
 
     /* Create all the tasks */
     create_tasks();

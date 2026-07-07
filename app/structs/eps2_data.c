@@ -38,15 +38,11 @@
 
 #include "eps2_data.h"
 
-uint8_t eps_param_id_beacon[EPS_BEACON_NUMBER_PARAM] = {EPS2_PARAM_ID_BAT_VOLTAGE,
-                                                        EPS2_PARAM_ID_RTD_0_TEMP,
-                                                        EPS2_PARAM_ID_RTD_1_TEMP,
+uint8_t eps_param_id_beacon[EPS_BEACON_NUMBER_PARAM] = {EPS2_PARAM_ID_MAIN_POWER_BUS_VOLTAGE,
+                                                        EPS2_PARAM_ID_BAT_CURRENT,
                                                         EPS2_PARAM_ID_RTD_4_TEMP,
-                                                        EPS2_PARAM_ID_RTD_5_TEMP,
                                                         EPS2_PARAM_ID_BAT_MONITOR_RARC,
-                                                        EPS2_PARAM_ID_SP_MY_PX_VOLTAGE,
-                                                        EPS2_PARAM_ID_SP_MX_PZ_VOLTAGE,
-                                                        EPS2_PARAM_ID_SP_MZ_PY_VOLTAGE,
+                                                        EPS2_PARAM_ID_RESET_COUNTER,
                                                         EPS2_PARAM_ID_SP_MY_CURRENT,
                                                         EPS2_PARAM_ID_SP_PY_CURRENT,
                                                         EPS2_PARAM_ID_SP_MX_CURRENT,
@@ -72,6 +68,10 @@ eps_data_t eps_data_buff = {
     .heater2_mode = 1,
     .heater2_duty_cycle = 0,
     
+    /* Only 5v_psw0 and 5v_psw3 start on because they provide CAN and antennas power supply */
+    .power_en_reg = 0x09,
+    .buck_en_reg = 0x03,
+
     .firmware_version = 0x00000300,       
 
     .device_id = 0xEEE2
@@ -228,6 +228,12 @@ int eps_buffer_write(uint8_t id, uint32_t value)
         case EPS2_PARAM_ID_BUCK_EN_REG:
             eps_data_buff.buck_en_reg = value;
             break;
+        case EPS2_PARAM_ID_ALLOWED_MODES:
+            eps_data_buff.allowed_modes = value;
+            break;
+        case EPS2_PARAM_ID_CURRENT_MODE:
+            eps_data_buff.current_mode = value;
+            break;
         case EPS2_PARAM_ID_DEVICE_ID:
             eps_data_buff.device_id = value;
             break;
@@ -246,251 +252,162 @@ int eps_buffer_read(uint8_t id, uint32_t *value)
     #if CONFIG_SET_DUMMY_EPS == 1
     switch(id)
     {
-        /* ================================================================
-         * NON-CRITICAL PARAMETERS — zeroed out for focused OBC testing
-         * ================================================================ */
-        case EPS2_PARAM_ID_TIME_COUNTER:              *value = 0; break;
-        case EPS2_PARAM_ID_MCU_TEMP:                  *value = 0; break;
-        case EPS2_PARAM_ID_EPS_CURRENT:               *value = 0; break;
-        case EPS2_PARAM_ID_LAST_RESET_CAUSE:          *value = 0; break;
-        case EPS2_PARAM_ID_SP_MY_PX_VOLTAGE:          *value = 0; break;
-        case EPS2_PARAM_ID_SP_MX_PZ_VOLTAGE:          *value = 0; break;
-        case EPS2_PARAM_ID_SP_MZ_PY_VOLTAGE:          *value = 0; break;
-        case EPS2_PARAM_ID_SP_MY_CURRENT:             *value = 0; break;
-        case EPS2_PARAM_ID_SP_PY_CURRENT:             *value = 0; break;
-        case EPS2_PARAM_ID_SP_MX_CURRENT:             *value = 0; break;
-        case EPS2_PARAM_ID_SP_PX_CURRENT:             *value = 0; break;
-        case EPS2_PARAM_ID_SP_MZ_CURRENT:             *value = 0; break;
-        case EPS2_PARAM_ID_SP_PZ_CURRENT:             *value = 0; break;
-        case EPS2_PARAM_ID_MPPT_1_DUTY_CYCLE:         *value = 0; break;
-        case EPS2_PARAM_ID_MPPT_2_DUTY_CYCLE:         *value = 0; break;
-        case EPS2_PARAM_ID_MPPT_3_DUTY_CYCLE:         *value = 0; break;
-        case EPS2_PARAM_ID_SP_VOLTAGE_MPPT:           *value = 0; break;
-        case EPS2_PARAM_ID_RTD_1_TEMP:                *value = 0; break;
-        case EPS2_PARAM_ID_RTD_2_TEMP:                *value = 0; break;
-        case EPS2_PARAM_ID_RTD_3_TEMP:                *value = 0; break;
-        case EPS2_PARAM_ID_RTD_4_TEMP:                *value = 0; break;
-        case EPS2_PARAM_ID_RTD_5_TEMP:                *value = 0; break;
-        case EPS2_PARAM_ID_RTD_6_TEMP:                *value = 0; break;
-        case EPS2_PARAM_ID_BAT_CURRENT:               *value = 0; break;
-        case EPS2_PARAM_ID_BAT_AVERAGE_CURRENT:       *value = 0; break;
-        case EPS2_PARAM_ID_BAT_ACC_CURRENT:           *value = 0; break;
-        case EPS2_PARAM_ID_BAT_CHARGE:                *value = 0; break;
-        case EPS2_PARAM_ID_BAT_MONITOR_TEMP:          *value = 0; break;
-        case EPS2_PARAM_ID_BAT_MONITOR_CYCLE_COUNTER: *value = 0; break;
-        case EPS2_PARAM_ID_BAT_MONITOR_RAAC:          *value = 0; break;
-        case EPS2_PARAM_ID_BAT_MONITOR_RSAC:          *value = 0; break;
-        case EPS2_PARAM_ID_BAT_HEATER_1_DUTY_CYCLE:  *value = 0; break;
-        case EPS2_PARAM_ID_BAT_HEATER_2_DUTY_CYCLE:  *value = 0; break;
-        case EPS2_PARAM_ID_MPPT_1_MODE:               *value = 0; break;
-        case EPS2_PARAM_ID_MPPT_2_MODE:               *value = 0; break;
-        case EPS2_PARAM_ID_MPPT_3_MODE:               *value = 0; break;
-        case EPS2_PARAM_ID_BAT_HEATER_1_MODE:         *value = 0; break;
-        case EPS2_PARAM_ID_BAT_HEATER_2_MODE:         *value = 0; break;
-        case EPS2_PARAM_ID_FW_VERSION:                *value = 0; break;
-        case EPS2_PARAM_ID_DEVICE_ID:                 *value = 0xEEE2U; break;
-
-        /* ================================================================
-         * CRITICAL HEALTH PARAMETERS — healthy dummy values for OBC testing
-         * Battery pack: 2S2P Li-ion (Sanyo NCR18650GA, 2x3500 mAh)
-         *   Nominal: 7200 mV | Max: 8400 mV | Capacity: 7000 mAh
-         *   VAE — DS2777 algorithmic active cutoff  (3.2V/cell): 6400 mV -> RARC = 0%
-         *   VAE — DS2777 algorithmic standby cutoff (2.8V/cell): 5600 mV -> RSRC = 0%
-         *   VUV — DS2777 hardware MOSFET cutoff    (~2.5V/cell): ~5000 mV -> abrupt power cut
-         *   Active discharge rate: 6 A | Standby rate: 1 A
-         * OBC polling: REQ_FULL_TLM every 3 min, full structure saved to flash.
-         * NOTE: 3-min snapshot IS the log.
-         *
-         * SAFE MODE definition: write power_en_reg = 0x00 via WR_SINGLE_PARAM
-         *   (all controllable switches off). UHF, OBC and EPS remain powered
-         *   by hardware regardless. Specific switch sequencing TBD based on
-         *   satellite operating states (to be defined once PSW assignments known).
-         * RECOVERY from SAFE MODE: restore previous power_en_reg value and
-         *   switch OBC state machine back to NORMAL only when BOTH RARC > 50%
-         *   AND RSRC > 50%.
-         * ================================================================ */
-
-        /* --- Battery raw voltage [mV] ---
-         * BACKUP CHECK for RARC/RSRC: RARC/RSRC are the primary safe mode
-         * triggers. This register is a last-resort confirmation if SoC fails.
-         *
-         * VAE = 6400 mV (3.2V/cell): DS2777 algorithmic active-empty cutoff.
-         *   Below this level, RARC = 0%. OBC should already be in SAFE MODE
-         *   via the RARC threshold before this voltage is reached.
-         *
-         * > 6400 mV: No action. RARC/RSRC are the decision makers.
-         *
-         * < 6400 mV [SAFE MODE — BACKUP]: Active algorithmic cutoff reached.
-         *   If NOT already in SAFE MODE: enter SAFE MODE now.
-         *   If already in SAFE MODE: expected state, keep monitoring.
-         *
-         * VUV ~ 5000 mV (2.5V/cell): DS2777 hardware MOSFET cutoff.
-         *   DS2777 physically disconnects the battery — abrupt power loss.
-         *   OBC cannot prevent this; all upstream checks should have acted. */
-        case EPS2_PARAM_ID_BAT_VOLTAGE:
-            *value = 7600;
+        case EPS2_PARAM_ID_TIME_COUNTER:
+            *value = 0;
             break;
-
-        /* --- Main power bus voltage [mV] ---
-         * Tracks the unregulated battery bus. Expected to match batteries_mv.
-         * SECONDARY BACKUP to batteries_mv — same thresholds and actions apply.
-         *
-         * SENSOR INCONSISTENCY: If |main_power_buss_mv - batteries_mv| > 200 mV,
-         *   use batteries_mv as primary. Inconsistency visible in next snapshot. */
-        case EPS2_PARAM_ID_MAIN_POWER_BUS_VOLTAGE:
-            *value = 7600;
-            break;
-
-        /* --- Active SoC at 6A discharge rate [%] ---
-         * PRIMARY metric for safe mode entry while in ACTIVE MODE.
-         * OBC must keep previous RARC value in RAM to detect transitions.
-         *
-         * > 30 %: No action. 3-min snapshot records the value.
-         *
-         * < 30 % [SAFE MODE]: Enter SAFE MODE (power_en_reg = 0x00).
-         *         Increase poll rate: REQ_SINGLE_PARAM(RARC+RSRC) every 60 s.
-         *
-         * RARC = 0 %: AEF flag in status register will also be set (DS2777 VAE
-         *         reached at 3.2V/cell). If not already in SAFE MODE, enter now.
-         *
-         * > 50 % [RECOVERY]: Exit SAFE MODE only if RSRC is also > 50 %. */
-        case EPS2_PARAM_ID_BAT_MONITOR_RARC:
-            *value = 80;
-            break;
-
-        /* --- Standby SoC at 1A discharge rate [%] ---
-         * KEY metric for eclipse survivability. Always evaluated in parallel,
-         * regardless of current operating mode. OBC keeps previous value in RAM.
-         *
-         * > 35 %: No action. 3-min snapshot records the value.
-         *
-         * < 35 % [SAFE MODE — FORCED]: Enter SAFE MODE (power_en_reg = 0x00)
-         *         regardless of RARC. Eclipse survival at 1A not guaranteed.
-         *         Min. eclipse energy (40 min at 1A) = ~667 mAh (~9.5% of 7000 mAh).
-         *         35% threshold includes x3.5 safety margin for aging and accuracy.
-         *         Increase poll rate: REQ_SINGLE_PARAM(RARC+RSRC) every 60 s.
-         *
-         * RSRC = 0 %: SEF flag in status register will also be set (DS2777
-         *         standby-empty reached, RSRC < 10%). Enter SAFE MODE immediately.
-         *
-         * > 50 % [RECOVERY]: Exit SAFE MODE only if RARC is also > 50 %. */
-        case EPS2_PARAM_ID_BAT_MONITOR_RSRC:
-            *value = 85;
-            break;
-
-        /* --- DS2777 Status Register (addr 0x01h) — FuelPack algorithm flags ---
-         * All bits are read-only; set and cleared autonomously by the DS2777.
-         *
-         * Bit 7 (CHGTF - Charge Termination): 1 = battery full (VCHG reached
-         *         and charge current dropped below IMIN). No OBC action.
-         *         Cleared automatically when RARC drops below 90%.
-         *
-         * Bit 6 (AEF - Active-Empty): 1 = batteries_mv crossed VAE (3.2V/cell)
-         *         under active load; RARC = 0%. Enter SAFE MODE immediately
-         *         if not already in SAFE MODE.
-         *
-         * Bit 5 (SEF - Standby-Empty): 1 = RSRC < 10%, deep discharge.
-         *         Enter SAFE MODE immediately regardless of other indicators.
-         *         Cleared when RSRC recovers above 15%.
-         *
-         * Bit 4 (LEARNF - Learn): 1 = DS2777 completed a learn cycle and
-         *         recalibrated capacity internally. No OBC action needed.
-         *
-         * Healthy value: 0x00. CHGTF = 1 (0x80) is also normal when fully
-         *         charged. AEF (bit 6) or SEF (bit 5) set are critical. */
-        case EPS2_PARAM_ID_BAT_MONITOR_STATUS:
-            *value = 0x00;
-            break;
-
-        /* --- DS2777 Protection Register (addr 0x00h) — MOSFET gate control ---
-         *
-         * Bit 3 (CC - Charge Control): read-only. 1 = charge MOSFET closed
-         *         (charging physically allowed). CC=0 is normal when battery is
-         *         full (CHGTF set). Alert only if CC=0 while CHGTF=0 and RARC<90%.
-         *
-         * Bit 2 (DC - Discharge Control): read-only. 1 = discharge MOSFET
-         *         closed (system can draw power). DC=0 means VUV threshold was
-         *         hit — DS2777 is cutting power. CRITICAL: enter SAFE MODE
-         *         immediately (if still alive to act).
-         *
-         * Bit 1 (CE - Charge Enable): writable by OBC. Default = 1.
-         *         If CE=0 unexpectedly, restore to 1 via WR_SINGLE_PARAM.
-         *
-         * Bit 0 (DE - Discharge Enable): writable by OBC. Default = 1.
-         *         NEVER write 0 — this cuts the battery bus and kills OBC.
-         *         If DE=0 unexpectedly, restore to 1 immediately.
-         *
-         * Healthy value during charging:     0x0F (CC=1, DC=1, CE=1, DE=1).
-         * Healthy value when not charging:   0x07 (CC=0, DC=1, CE=1, DE=1).
-         * CRITICAL if DC=0 or DE=0: imminent or in-progress power loss. */
-        case EPS2_PARAM_ID_BAT_MONITOR_PROTECT:
-            *value = 0x0F;
-            break;
-
-        /* --- Battery temperature RTD 0 [Kelvin] ---
-         * EPS manages heaters autonomously in AUTO mode.
-         * OBC records this value in every 3-min snapshot for ground monitoring.
-         * No OBC action taken — temperature management is handled by EPS AUTO. */
-        case EPS2_PARAM_ID_RTD_0_TEMP:
-            *value = 293;
-            break;
-
-        /* --- Power enable register ---
-         * Written by OBC to control power switches (active-high enable).
-         * Bit 7: reserved (always 0)
-         * Bit 6: EN_3V3_PSW0  | Bit 5: EN_3V3_PSW1
-         * Bit 4: EN_5V_3A (independent buck, no cascade switch)
-         * Bit 3: EN_5V_PSW0   | Bit 2: EN_5V_PSW1
-         * Bit 1: EN_5V_PSW2   | Bit 0: EN_5V_PSW3
-         * SAFE MODE value: 0x00 (all switches off)
-         * Initial hardware state: 0x10 (EN_5V_3A on by default in EPS init)
-         *
-         * MATCH (read == last commanded value): No action.
-         *
-         * MISMATCH (read != last commanded value):
-         *   Wait 1 poll (3 min) and re-read via REQ_SINGLE_PARAM.
-         *   If still mismatched: check reset_counter.
-         *     reset_counter incremented -> EPS reset; re-send power_en_reg.
-         *     reset_counter unchanged   -> re-send power_en_reg; if persists,
-         *                                  visible in next snapshot for ground. */
-        case EPS2_PARAM_ID_POWER_EN_REG:
-            *value = 0x10;
-            break;
-
-        /* --- Buck enable register (read-only for OBC, auto-set by EPS) ---
-         * Do not write this register. EPS calculates it from power_en_reg.
-         * Bit 2: buck 3V3/2A  -> expected 1 if (power_en_reg & 0x60) != 0
-         * Bit 1: buck 5V/5A_1 -> expected 1 if (power_en_reg & 0x0C) != 0
-         * Bit 0: buck 5V/5A_0 -> expected 1 if (power_en_reg & 0x03) != 0
-         * NOTE: EN_5V_3A (bit4 of power_en_reg) is independent; not tracked here.
-         *
-         * CONSISTENT: No action.
-         *
-         * INCONSISTENT: Re-read both registers. If still inconsistent, re-write
-         *   power_en_reg. If persists: clear the PSW bits driving the faulty
-         *   buck stage in power_en_reg. Visible in next snapshot for ground. */
-        case EPS2_PARAM_ID_BUCK_EN_REG:
-            *value = 0x00;
-            break;
-
-        /* --- EPS reset counter ---
-         * OBC must store the previous reset_counter value in RAM between polls.
-         *
-         * STABLE (no change): No action.
-         *
-         * INCREMENTED BY 1:
-         *   Within expected auto-reset window (EPS resets every 10 h):
-         *     Re-send current power_en_reg via WR_SINGLE_PARAM.
-         *   Outside expected window (unexpected reset):
-         *     Re-send power_en_reg. Visible in next snapshot for ground.
-         *
-         * INCREMENTED BY > 1 between polls (multiple resets within 3 min):
-         *   EPS critically unstable. Enter SAFE MODE (power_en_reg = 0x00).
-         *   Exit only when counter is stable for > 30 min and energy is healthy. */
-        case EPS2_PARAM_ID_RESET_COUNTER:
+        case EPS2_PARAM_ID_MCU_TEMP:
             *value = 1;
             break;
-
+        case EPS2_PARAM_ID_EPS_CURRENT:
+            *value = 2;
+            break;
+        case EPS2_PARAM_ID_LAST_RESET_CAUSE:
+            *value = 3;
+            break;
+        case EPS2_PARAM_ID_RESET_COUNTER:
+            *value = 4;
+            break;
+        case EPS2_PARAM_ID_SP_MY_PX_VOLTAGE:
+            *value = 5;
+            break;
+        case EPS2_PARAM_ID_SP_MX_PZ_VOLTAGE:
+            *value = 6;
+            break;
+        case EPS2_PARAM_ID_SP_MZ_PY_VOLTAGE:
+            *value = 7;
+            break;
+        case EPS2_PARAM_ID_SP_MY_CURRENT:
+            *value = 8;
+            break;
+        case EPS2_PARAM_ID_SP_PY_CURRENT:
+            *value = 9;
+            break;
+        case EPS2_PARAM_ID_SP_MX_CURRENT:
+            *value = 10;
+            break;
+        case EPS2_PARAM_ID_SP_PX_CURRENT:
+            *value = 11;
+            break;
+        case EPS2_PARAM_ID_SP_MZ_CURRENT:
+            *value = 12;
+            break;
+        case EPS2_PARAM_ID_SP_PZ_CURRENT:
+            *value = 13;
+            break;
+        case EPS2_PARAM_ID_MPPT_1_DUTY_CYCLE:
+            *value = 14;
+            break;
+        case EPS2_PARAM_ID_MPPT_2_DUTY_CYCLE:
+            *value = 15;
+            break;
+        case EPS2_PARAM_ID_MPPT_3_DUTY_CYCLE:
+            *value = 16;
+            break;
+        case EPS2_PARAM_ID_SP_VOLTAGE_MPPT:
+            *value = 17;
+            break;
+        case EPS2_PARAM_ID_MAIN_POWER_BUS_VOLTAGE:
+            *value = 18;
+            break;
+        case EPS2_PARAM_ID_RTD_0_TEMP:
+            *value = 19;
+            break;
+        case EPS2_PARAM_ID_RTD_1_TEMP:
+            *value = 20;
+            break;
+        case EPS2_PARAM_ID_RTD_2_TEMP:
+            *value = 21;
+            break;
+        case EPS2_PARAM_ID_RTD_3_TEMP:
+            *value = 22;
+            break;
+        case EPS2_PARAM_ID_RTD_4_TEMP:
+            *value = 23;
+            break;
+        case EPS2_PARAM_ID_RTD_5_TEMP:
+            *value = 24;
+            break;
+        case EPS2_PARAM_ID_RTD_6_TEMP:
+            *value = 25;
+            break;
+        case EPS2_PARAM_ID_BAT_VOLTAGE:
+            *value = 26;
+            break;
+        case EPS2_PARAM_ID_BAT_CURRENT:
+            *value = 27;
+            break;
+        case EPS2_PARAM_ID_BAT_AVERAGE_CURRENT:
+            *value = 28;
+            break;
+        case EPS2_PARAM_ID_BAT_ACC_CURRENT:
+            *value = 29;
+            break;
+        case EPS2_PARAM_ID_BAT_CHARGE:
+            *value = 30;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_TEMP:
+            *value = 31;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_STATUS:
+            *value = 32;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_PROTECT:
+            *value = 33;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_CYCLE_COUNTER:
+            *value = 34;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_RAAC:
+            *value = 35;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_RSAC:
+            *value = 36;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_RARC:
+            *value = 37;
+            break;
+        case EPS2_PARAM_ID_BAT_MONITOR_RSRC:
+            *value = 38;
+            break;
+        case EPS2_PARAM_ID_BAT_HEATER_1_DUTY_CYCLE:
+            *value = 39;
+            break;
+        case EPS2_PARAM_ID_BAT_HEATER_2_DUTY_CYCLE:
+            *value = 40;
+            break;
+        case EPS2_PARAM_ID_FW_VERSION:
+            *value = 41;
+            break;
+        case EPS2_PARAM_ID_MPPT_1_MODE:
+            *value = 42;
+            break;
+        case EPS2_PARAM_ID_MPPT_2_MODE:
+            *value = 43;
+            break;
+        case EPS2_PARAM_ID_MPPT_3_MODE:
+            *value = 44;
+            break;
+        case EPS2_PARAM_ID_BAT_HEATER_1_MODE:
+            *value = 45;
+            break;
+        case EPS2_PARAM_ID_BAT_HEATER_2_MODE:
+            *value = 46;
+            break;
+        case EPS2_PARAM_ID_POWER_EN_REG:
+            *value = 47;
+            break;
+        case EPS2_PARAM_ID_BUCK_EN_REG:
+            *value = 48;
+            break;
+        case EPS2_PARAM_ID_ALLOWED_MODES:
+            *value = 49;
+            break;
+        case EPS2_PARAM_ID_CURRENT_MODE:
+            *value = 50;
+            break;
+        case EPS2_PARAM_ID_DEVICE_ID:
+            *value = 0xEEE2U;
+            break;
         default:
             sys_log_print_event_from_module(SYS_LOG_ERROR, EPS_DATA_NAME, "Unknown parameter ID while reading!");
             sys_log_new_line();
@@ -649,6 +566,12 @@ int eps_buffer_read(uint8_t id, uint32_t *value)
         case EPS2_PARAM_ID_BUCK_EN_REG:
             *value = eps_data_buff.buck_en_reg;
             break;
+        case EPS2_PARAM_ID_ALLOWED_MODES:
+            *value = eps_data_buff.allowed_modes;
+            break;
+        case EPS2_PARAM_ID_CURRENT_MODE:
+            *value = eps_data_buff.current_mode;
+            break;
         case EPS2_PARAM_ID_DEVICE_ID:
             *value = eps_data_buff.device_id;
             break;
@@ -706,6 +629,8 @@ int eps_buffer_get_size(uint8_t id, uint8_t* size)
         case EPS2_PARAM_ID_BAT_MONITOR_TEMP:
         case EPS2_PARAM_ID_BAT_MONITOR_RAAC:
         case EPS2_PARAM_ID_BAT_MONITOR_RSAC:
+        case EPS2_PARAM_ID_ALLOWED_MODES:
+        case EPS2_PARAM_ID_CURRENT_MODE:
         case EPS2_PARAM_ID_DEVICE_ID:
             *size = (uint8_t)sizeof(uint16_t);
             break;

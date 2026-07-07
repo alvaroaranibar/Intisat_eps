@@ -43,7 +43,7 @@
 
 #define EPS_DATA_NAME               "EPS2 Buffer"
 
-#define EPS_BEACON_NUMBER_PARAM     15
+#define EPS_BEACON_NUMBER_PARAM     11
 
 /**
  * \brief Parameters' IDs.
@@ -99,8 +99,10 @@ typedef enum
     EPS2_PARAM_ID_BAT_HEATER_2_MODE         = 46,
     EPS2_PARAM_ID_POWER_EN_REG              = 47,
     EPS2_PARAM_ID_BUCK_EN_REG               = 48,
-    EPS2_PARAM_ID_DEVICE_ID                 = 49,
-    EPS2_PARAM_MAX_COUNT					= 50
+    EPS2_PARAM_ID_ALLOWED_MODES             = 49,
+    EPS2_PARAM_ID_CURRENT_MODE              = 50,
+    EPS2_PARAM_ID_DEVICE_ID                 = 51,
+    EPS2_PARAM_MAX_COUNT					= 52
 } eps2_param_id_e;
 
 /**
@@ -172,13 +174,18 @@ typedef struct
 
     /** 
      *  Active-high enable of regulators and power switches
-    uint8_t 
      */
     uint8_t power_en_reg;                       /**< Status of active-high enable of derived power switches */
     uint8_t buck_en_reg;                        /**< Active-high status of the buck regulators. These regulators do not route directly to the PC/104 header; 
                                                      instead, they supply the power switches. Each buck regulator is automatically disabled internally 
                                                      if all of its derived power switches are turned off. */
     
+    /** 
+     *  OBC control registers.
+     */
+    uint16_t allowed_modes;
+    uint16_t current_mode;
+
     /**
      *  EPS misc related data.
      */

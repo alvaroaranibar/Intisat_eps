@@ -55,18 +55,18 @@ int power_switch_init()
         return -1;
     }
 
-    /* All controllable power switches and regulators are initially disabled. */
+    /* Only 5v_psw0 and 5v_psw3 start on because they provide CAN and antennas power supply */
     if (
-        gpio_set_state(EN_3V3_2A_PIN, false)     ||
-        gpio_set_state(EN_3V3_PSW0_PIN, false) ||
-        gpio_set_state(EN_3V3_PSW1_PIN,false ) ||
-        gpio_set_state(EN_5V_3A_PIN, true)           ||
+        gpio_set_state(EN_3V3_2A_PIN, false)    ||
+        gpio_set_state(EN_3V3_PSW0_PIN, false)  ||
+        gpio_set_state(EN_3V3_PSW1_PIN,false )  ||
+        gpio_set_state(EN_5V_3A_PIN, false)     ||
         gpio_set_state(EN_5V_5A_1_PIN, false)   ||
-        gpio_set_state(EN_5V_PSW0_PIN, false)   ||
+        gpio_set_state(EN_5V_PSW0_PIN, true)   ||
         gpio_set_state(EN_5V_PSW1_PIN, false)   ||
         gpio_set_state(EN_5V_5A_0_PIN, false)   ||
         gpio_set_state(EN_5V_PSW2_PIN, false)   ||
-        gpio_set_state(EN_5V_PSW3_PIN, false)      
+        gpio_set_state(EN_5V_PSW3_PIN, true)      
        )
     {
         sys_log_print_event_from_module(SYS_LOG_ERROR, POWER_SWITCH_MODULE_NAME, "Error while initially disabling regulators and power switches! ");
